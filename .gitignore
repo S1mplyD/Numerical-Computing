@@ -1,0 +1,8 @@
+#images
+*.png
+
+#test file
+test.py
+
+#result file
+results.txt
