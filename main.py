@@ -5,7 +5,6 @@ from scipy import signal
 from scipy.optimize import minimize
 from numpy import fft
 
-
 # Create a Gaussian kernel of size kernlen and standard deviation sigma
 def gaussian_kernel(kernlen, sigma):
     x = np.linspace(- (kernlen // 2), kernlen // 2, kernlen)    
@@ -43,8 +42,9 @@ def AT(x, K):
 
 #Punto 1: Blur dell'immagine
 
+_imagepath = "/path/to/image"
 #Import dell'immagine
-image = io.imread('./imagecalc7.png')  
+image = io.imread(_imagepath)  
 
 #Definisco il tipo dell'immagine e normalizzo l'immagine
 Xoriginal = image.astype(np.float64) / 255.0
@@ -56,7 +56,7 @@ m, n = Xoriginal.shape
 K = psf_fft(gaussian_kernel(9, 1.3), 9, Xoriginal.shape)
 
 # Genera il rumore
-dev = 0.01218556955205374#np.random.uniform(low=0.0, high=0.05)
+dev = np.random.uniform(low=0.0, high=0.05)
 noise = np.random.normal(size=Xoriginal.shape) * dev
 
 # Aggiungi i vari livelli di blur e il rumore, per generare diverse immagini corrotte
@@ -74,6 +74,7 @@ MSE = metrics.mean_squared_error(Xoriginal, b)
 k = 0
 
 file = open("results.txt", "w")
+#array andamento funzione, norma del gradiente e errore
 fVal = np.zeros((1,1000))
 dfVal = np.zeros((1,1000))
 err_norm_f = np.zeros((1,1000))
@@ -85,7 +86,7 @@ def countIt(x):
 #Funzione che è necessario minimizzare per ottenere il risultato con soluzione naive
 def f(x):
   J = x.reshape(m,n)
-  res = 0.5*(np.linalg.norm(A(J, K)-b,ord=2))**2
+  res = 0.5*(np.linalg.norm(A(J, K)-Xoriginal,ord=2))**2
   fVal[:,k] = res
   return res
 
@@ -93,12 +94,10 @@ def f(x):
 def df(x):
   J = x.reshape(m,n)
   res = AT(A(J, K), K) - ATb
-  # print(f"norma gradiente df: {res}")
-  err_norm_f[:,k]=(np.linalg.norm(J-b))
+  err_norm_f[:,k]=(np.linalg.norm(J-Xoriginal))
   RES = np.reshape(res, m*n)
   dfVal[:,k]=(np.linalg.norm(RES))
   return RES
-
 
 x0 = np.zeros(m*n)
 #Immagine ricostruita con metodo naive Kernel 5x5
@@ -109,6 +108,15 @@ fVal = fVal[:,:k]
 k = 0
 file.write("iterazioni naive: ")
 file.write(str(naive.nit))
+file.write("\n")
+file.write("norma gradiente naive: ")
+file.write(str(dfVal))
+file.write("\n")
+file.write("errore naive: ")
+file.write(str(err_norm_f))
+file.write("\n")
+file.write("funzione obiettivo naive: ")
+file.write(str(fVal))
 file.write("\n")
 plt.plot(dfVal.T, 'o-')
 plt.xlabel('iter')
@@ -141,14 +149,11 @@ MSEnaive = metrics.mean_squared_error(Xoriginal, Xnaive)
 #Punto 3: Regolarizzazione
 
 #Valore di lambda selezionato
-_lambda = 0.04
-fregVal = np.zeros((1,1000))
-dfregVal = np.zeros((1,1000))
-err_norm_freg = np.zeros((1,1000))
+_lambda = 0.06
 
 def freg(x):
   J = x.reshape(m,n)
-  res = 0.5*(np.linalg.norm(A(J, K)-b))**2 + (_lambda/2)*(np.linalg.norm(J))**2
+  res = 0.5*(np.linalg.norm(A(J, K)-Xoriginal))**2 + (_lambda/2)*(np.linalg.norm(J))**2
   fregVal[:,k] = res
   return res
 
@@ -156,7 +161,7 @@ def dfreg(x):
   J = x.reshape(m,n)
   res = AT(A(J, K), K) - ATb + _lambda*J
   # print(f"norma gradiente dfreg: {res}")
-  err_norm_freg[:,k]=(np.linalg.norm(J-b))
+  err_norm_freg[:,k]=(np.linalg.norm(J-Xoriginal))
   RES = np.reshape(res, m*n)
   dfregVal[:,k]=(np.linalg.norm(RES))
   return RES
@@ -191,7 +196,7 @@ def minimize2(x0): # funzione che implementa il metodo del gradiente
     step = next_step(x_last,grad) #Valore di alpha ritornato dalla funzione di backtracking
     x_last=x_last-step*grad.reshape(m,n) 
     function_eval_list[:,k]=freg(x_last)
-    error_list[:,k]=np.linalg.norm(x_last-b)
+    error_list[:,k]=np.linalg.norm(x_last-Xoriginal)
     norm_grad_list[:,k]=np.linalg.norm(dfreg(x_last))
   function_eval_list = function_eval_list[:,:k]
   error_list = error_list[:,:k]
@@ -199,11 +204,26 @@ def minimize2(x0): # funzione che implementa il metodo del gradiente
   return (x_last, k, function_eval_list,error_list,norm_grad_list)
 
 #risultato minimize gradiente coniugato
+
 regCG = minimize(freg,x0,callback=countIt,method='CG',jac=dfreg)
+#array andamento funzione, norma del gradiente e errore
+fregVal = fregVal[:,:k]
 dfregVal = dfregVal[:,:k]
 err_norm_freg = err_norm_freg[:,:k]
-fregVal = fregVal[:,:k]
+
 k = 0
+file.write("iterazioni regcg: ")
+file.write(str(regCG.nit))
+file.write("\n")
+file.write("norma gradiente regcg: ")
+file.write(str(dfregVal))
+file.write("\n")
+file.write("errore regcg: ")
+file.write(str(err_norm_freg))
+file.write("\n")
+file.write("funzione obiettivo regcg: ")
+file.write(str(fregVal))
+file.write("\n")
 plt.plot(dfregVal.T, 'o-')
 plt.xlabel('iter')
 plt.ylabel('Norma Gradiente')
@@ -223,26 +243,21 @@ plt.title('Iterazioni vs Funzione Obiettivo')
 plt.grid()
 plt.show()
 
-#funzione
-# plt.plot(np.arange((len(fregVal))),fregVal,color="red",linestyle="--")
-# plt.show()
-# #norma
-# plt.plot(np.arange((len(dfregVal))),dfregVal,color="red",linestyle="--")
-# plt.show()
-#_lambda = 0.6
-# regCG1 = minimize(freg,x0,method='CG',jac=dfreg)
-# iter = np.arange((len(fregVal)))
-# plt.plot(iter,fregVal,color="red",linestyle="--")
-# plt.ylabel("valore funzione")
-# plt.show()
-# fregVal.clear()
 #risultato minimize gradiente implementato a lezione
 regG = minimize2(x0)
 file.write("iterazioni regG: ")
 file.write(str(regG[1]))
 file.write("\n")
+file.write("norma gradiente regg: ")
+file.write(str(regG[4]))
+file.write("\n")
+file.write("errore regg: ")
+file.write(str(regG[3]))
+file.write("\n")
+file.write("funzione obiettivo regg: ")
+file.write(str(regG[2]))
+file.write("\n")
 file.close()
-print(regG[4].T)
 plt.plot(regG[4].T, 'o-')
 plt.xlabel('iter')
 plt.ylabel('Norma Gradiente')
@@ -261,11 +276,6 @@ plt.ylabel('Funzione Obiettivo')
 plt.title('Iterazioni vs Funzione Obiettivo')
 plt.grid()
 plt.show()
-# plt.plot(np.arange((len(fregVal))),fregVal,color="green",linestyle="--")
-# plt.show()
-# #norma
-# plt.plot(np.arange((len(dfregVal))),dfregVal,color="green",linestyle="--")
-# plt.show()
 
 #immagini ricostruite
 
@@ -285,38 +295,38 @@ MSEregCG = metrics.mean_squared_error(Xoriginal, XregCG)
 PSNRregG = metrics.peak_signal_noise_ratio(Xoriginal,XregG)
 MSEregG = metrics.mean_squared_error(Xoriginal, XregG)
 
-# # Visualizziamo i risultati
-# plt.figure(figsize=(30, 30))
-# #Immagine originale
-# ax1 = plt.subplot(1, 2, 1)
-# ax1.imshow(Xoriginal, cmap='gray', vmin=0, vmax=1)
-# plt.title('Immagine Originale')
+# Visualizziamo i risultati
+plt.figure(figsize=(30, 30))
+#Immagine originale
+ax1 = plt.subplot(1, 2, 1)
+ax1.imshow(Xoriginal, cmap='gray', vmin=0, vmax=1)
+plt.title('Immagine Originale')
 
-# #Immagine corrotta
-# ax2 = plt.subplot(1, 2, 2)
-# ax2.imshow(b, cmap='gray', vmin=0, vmax=1)
-# plt.title(f'Immagine Corrotta (PSNR: {PSNR:.2f}) (MSE: {MSE:.6f})')
+#Immagine corrotta
+ax2 = plt.subplot(1, 2, 2)
+ax2.imshow(b, cmap='gray', vmin=0, vmax=1)
+plt.title(f'Immagine Corrotta (PSNR: {PSNR:.2f}) (MSE: {MSE:.6f})')
 
-# plt.show()
+plt.show()
 
-# plt.figure(figsize=(30, 30))
-# #Immagine minimizzata con soluzione naive 
-# ax5 = plt.subplot(1,3,1)
-# ax5.imshow(Xnaive,cmap='gray', vmin=0, vmax=1)
-# plt.title(f'Immagine minimizzata con soluzione naive (PSNR: {PSNRnaive:.2f}) (MSE: {MSEnaive:.6f})')
+plt.figure(figsize=(30, 30))
+#Immagine minimizzata con soluzione naive 
+ax5 = plt.subplot(1,3,1)
+ax5.imshow(Xnaive,cmap='gray', vmin=0, vmax=1)
+plt.title(f'Immagine minimizzata con soluzione naive (PSNR: {PSNRnaive:.2f}) (MSE: {MSEnaive:.6f})')
 
-# #Immagine minimizzata con regolarizzazione 
-# ax8 = plt.subplot(1,3,2)
-# ax8.imshow(XregCG,cmap='gray', vmin=0, vmax=1)
-# plt.title(f'Immagine minimizzata con regolarizzazione (PSNR: {PSNRregCG:.2f}) (MSE: {MSEregCG:.6f})')
+#Immagine minimizzata con regolarizzazione 
+ax8 = plt.subplot(1,3,2)
+ax8.imshow(XregCG,cmap='gray', vmin=0, vmax=1)
+plt.title(f'Immagine minimizzata con regolarizzazione (PSNR: {PSNRregCG:.2f}) (MSE: {MSEregCG:.6f})')
 
-# #Immagine minimizzata con regolarizzazione 2
-# ax11 = plt.subplot(1,3,3)
-# ax11.imshow(XregG,cmap='gray', vmin=0, vmax=1)
-# plt.title(f'Immagine minimizzata con regolarizzazione 2 (PSNR: {PSNRregG:.2f}) (MSE: {MSEregG:.6f})')
+#Immagine minimizzata con regolarizzazione 2
+ax11 = plt.subplot(1,3,3)
+ax11.imshow(XregG,cmap='gray', vmin=0, vmax=1)
+plt.title(f'Immagine minimizzata con regolarizzazione 2 (PSNR: {PSNRregG:.2f}) (MSE: {MSEregG:.6f})')
 
-# plt.show()
+plt.show()
 
-# print(f"PSNR: {PSNR,PSNRnaive,PSNRregCG,PSNRregG}")
-# print(f"MSE: {MSE,MSEnaive,MSEregCG,MSEregG}")
-# print(f"dev: {dev}")
+print(f"PSNR: {PSNR,PSNRnaive,PSNRregCG,PSNRregG}")
+print(f"MSE: {MSE,MSEnaive,MSEregCG,MSEregG}")
+print(f"dev: {dev}")
