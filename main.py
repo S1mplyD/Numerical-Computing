@@ -50,13 +50,13 @@ image = io.imread(_imagepath)
 Xoriginal = image.astype(np.float64) / 255.0
 m, n = Xoriginal.shape
 
-# Genera i diversi filtri di blur
+# Genera i diversi filtri di blur (decomenntare il kernel che si desidera usare)
 #K= psf_fft(gaussian_kernel(5, 0.5), 5, Xoriginal.shape)
 #K = psf_fft(gaussian_kernel(7, 1), 7, Xoriginal.shape)
 K = psf_fft(gaussian_kernel(9, 1.3), 9, Xoriginal.shape)
 
 # Genera il rumore
-dev = np.random.uniform(low=0.0, high=0.05)
+dev =  np.random.uniform(low=0.0, high=0.05)
 noise = np.random.normal(size=Xoriginal.shape) * dev
 
 # Aggiungi i vari livelli di blur e il rumore, per generare diverse immagini corrotte
@@ -73,7 +73,6 @@ MSE = metrics.mean_squared_error(Xoriginal, b)
 #Punto 2: Soluzione naive
 k = 0
 
-file = open("results.txt", "w")
 #array andamento funzione, norma del gradiente e errore
 fVal = np.zeros((1,1000))
 dfVal = np.zeros((1,1000))
@@ -100,24 +99,12 @@ def df(x):
   return RES
 
 x0 = np.zeros(m*n)
-#Immagine ricostruita con metodo naive Kernel 5x5
+#Immagine ricostruita con metodo naive
 naive = minimize(f,x0,method='CG',callback=countIt,jac=df)
 dfVal = dfVal[:,:k]
 err_norm_f = err_norm_f[:,:k]
 fVal = fVal[:,:k]
 k = 0
-file.write("iterazioni naive: ")
-file.write(str(naive.nit))
-file.write("\n")
-file.write("norma gradiente naive: ")
-file.write(str(dfVal))
-file.write("\n")
-file.write("errore naive: ")
-file.write(str(err_norm_f))
-file.write("\n")
-file.write("funzione obiettivo naive: ")
-file.write(str(fVal))
-file.write("\n")
 plt.plot(dfVal.T, 'o-')
 plt.xlabel('iter')
 plt.ylabel('Norma Gradiente')
@@ -150,6 +137,9 @@ MSEnaive = metrics.mean_squared_error(Xoriginal, Xnaive)
 
 #Valore di lambda selezionato
 _lambda = 0.06
+fregVal = np.zeros((1,1000))
+dfregVal = np.zeros((1,1000))
+err_norm_freg = np.zeros((1,1000))
 
 def freg(x):
   J = x.reshape(m,n)
@@ -210,20 +200,7 @@ regCG = minimize(freg,x0,callback=countIt,method='CG',jac=dfreg)
 fregVal = fregVal[:,:k]
 dfregVal = dfregVal[:,:k]
 err_norm_freg = err_norm_freg[:,:k]
-
 k = 0
-file.write("iterazioni regcg: ")
-file.write(str(regCG.nit))
-file.write("\n")
-file.write("norma gradiente regcg: ")
-file.write(str(dfregVal))
-file.write("\n")
-file.write("errore regcg: ")
-file.write(str(err_norm_freg))
-file.write("\n")
-file.write("funzione obiettivo regcg: ")
-file.write(str(fregVal))
-file.write("\n")
 plt.plot(dfregVal.T, 'o-')
 plt.xlabel('iter')
 plt.ylabel('Norma Gradiente')
@@ -245,19 +222,6 @@ plt.show()
 
 #risultato minimize gradiente implementato a lezione
 regG = minimize2(x0)
-file.write("iterazioni regG: ")
-file.write(str(regG[1]))
-file.write("\n")
-file.write("norma gradiente regg: ")
-file.write(str(regG[4]))
-file.write("\n")
-file.write("errore regg: ")
-file.write(str(regG[3]))
-file.write("\n")
-file.write("funzione obiettivo regg: ")
-file.write(str(regG[2]))
-file.write("\n")
-file.close()
 plt.plot(regG[4].T, 'o-')
 plt.xlabel('iter')
 plt.ylabel('Norma Gradiente')
